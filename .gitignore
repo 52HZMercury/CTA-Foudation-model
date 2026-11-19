@@ -1,0 +1,22 @@
+# SFTP 凭据（含明文密码）
+.vscode/sftp.json
+
+# 模型权重 / 大数据
+merlin/models/checkpoints/
+**/*.pt
+**/*.pth
+**/*.nii.gz
+**/*.zip
+Merlin/documentation/abct_data*/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# 系统
+.DS_Store
+Thumbs.db
