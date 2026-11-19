@@ -1,0 +1,417 @@
+<title>Merlin 双塔架构</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* 版式概念：技术图纸。正文 Plex Sans，所有尺寸与张量走 Plex Mono；中性色偏冷灰，单一墨绿只标“可改动/可接入”的部分 */
+  :root {
+    --paper: #f2f4f3;
+    --surface: #ffffff;
+    --ink: #12191c;
+    --muted: #5b6a70;
+    --line: #d2dad8;
+    --line-strong: #a9b6b3;
+    --accent: #1c6b58;
+    --accent-soft: #dfece8;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0d1214;
+      --surface: #161d1f;
+      --ink: #e3eae8;
+      --muted: #92a3a1;
+      --line: #293436;
+      --line-strong: #3d4b4d;
+      --accent: #6ec0a6;
+      --accent-soft: #15302a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0d1214;
+    --surface: #161d1f;
+    --ink: #e3eae8;
+    --muted: #92a3a1;
+    --line: #293436;
+    --line-strong: #3d4b4d;
+    --accent: #6ec0a6;
+    --accent-soft: #15302a;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  .page {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-block: 56px 72px;
+  }
+
+  header { display: flex; flex-direction: column; gap: 14px; margin-bottom: 44px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-size: clamp(30px, 5vw, 44px);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 16.5px;
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  figure { margin: 0 0 52px; }
+
+  .fig-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .fig-num {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .fig-title { font-size: 17px; font-weight: 600; margin: 0; }
+
+  .canvas {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px 16px;
+    overflow-x: auto;
+  }
+
+  svg { display: block; width: 100%; height: auto; max-width: 100%; }
+  svg.wide { min-width: 640px; }
+
+  figcaption {
+    margin-top: 14px;
+    font-size: 13.5px;
+    color: var(--muted);
+    max-width: 78ch;
+  }
+
+  figcaption code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+
+  .blk { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.1; }
+  .blk-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .blk-mute { fill: none; stroke: var(--line); stroke-width: 1.1; stroke-dasharray: 4 3; }
+
+  .t-name { font-family: var(--mono); font-size: 12.5px; font-weight: 500; fill: var(--ink); }
+  .t-sub { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  .t-shape { font-family: var(--mono); font-size: 11px; fill: var(--ink); }
+  .t-op { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  .t-arrow { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+  .t-accent { font-family: var(--mono); font-size: 11px; fill: var(--accent); }
+
+  .flow { stroke: var(--ink); stroke-width: 1.3; fill: none; }
+  .flow-accent { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+  .ah { fill: var(--ink); }
+  .ah-accent { fill: var(--accent); }
+
+  section.notes { margin-top: 8px; }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin: 0 0 14px;
+  }
+
+  ul.takeaways {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+
+  ul.takeaways li {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    padding: 14px 16px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  ul.takeaways strong { color: var(--ink); font-weight: 600; display: block; margin-bottom: 3px; }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  @media (max-width: 480px) {
+    .page { padding-block: 36px 48px; }
+    .canvas { padding: 14px 10px; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">StanfordMIMI / Merlin · 3D CT 视觉-语言基础模型</div>
+    <h1>Merlin 双塔架构</h1>
+    <p class="lede">
+      一只 I3D 膨胀 ResNet-152 看 CT，一只 Clinical-Longformer 读报告，两个 512 维向量用对比学习对齐；
+      图像塔同时挂一个 1692 类结构化 EHR 分类头。
+    </p>
+  </header>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">图 1</span>
+      <h2 class="fig-title">系统总览 · 三路监督</h2>
+    </div>
+    <div class="canvas">
+      <svg class="wide" viewBox="0 0 980 420" role="img"
+           aria-label="系统总览：CT 体积经 3D 图像塔输出 512 维对比嵌入与 1692 维 EHR 概率；报告文本经 Clinical-Longformer 输出 512 维嵌入；两个 512 维向量做余弦对比学习。">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path class="ah" d="M0,0 L10,5 L0,10 Z"/>
+          </marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path class="ah-accent" d="M0,0 L10,5 L0,10 Z"/>
+          </marker>
+        </defs>
+
+        <!-- 图像分支 -->
+        <rect class="blk" x="24" y="40" width="190" height="96" rx="4"/>
+        <text class="t-name" x="40" y="66">CT 体积</text>
+        <text class="t-sub" x="40" y="88">224×224×160</text>
+        <text class="t-sub" x="40" y="105">1.5×1.5×3.0 mm</text>
+        <text class="t-sub" x="40" y="122">HU [-1000, 1000]</text>
+
+        <line class="flow" x1="214" y1="88" x2="246" y2="88" marker-end="url(#a1)"/>
+        <text class="t-arrow" x="230" y="78" text-anchor="middle">cat×3</text>
+
+        <rect class="blk" x="254" y="40" width="190" height="96" rx="4"/>
+        <text class="t-name" x="270" y="66">图像塔</text>
+        <text class="t-sub" x="270" y="88">I3D-ResNet-152</text>
+        <text class="t-sub" x="270" y="105">117 M · BatchNorm</text>
+        <text class="t-sub" x="270" y="122">(B, 3, 160, 224, 224)</text>
+
+        <polyline class="flow" points="444,88 464,88 464,72 476,72" marker-end="url(#a1)"/>
+        <rect class="blk" x="484" y="40" width="190" height="64" rx="4"/>
+        <text class="t-name" x="500" y="66">对比头 2048→512</text>
+        <text class="t-sub" x="500" y="86">→ (B, 512)</text>
+
+        <polyline class="flow" points="349,136 349,176 349,208 476,208" marker-end="url(#a1)"/>
+        <rect class="blk" x="484" y="176" width="190" height="64" rx="4"/>
+        <text class="t-name" x="500" y="202">EHR 头 2048→1692</text>
+        <text class="t-sub" x="500" y="222">→ (B, 1692)</text>
+
+        <line class="flow" x1="674" y1="208" x2="706" y2="208" marker-end="url(#a1)"/>
+        <rect class="blk" x="714" y="176" width="240" height="64" rx="4"/>
+        <text class="t-name" x="730" y="202">BCE 多标签</text>
+        <text class="t-sub" x="730" y="222">1692 个 phecode</text>
+
+        <!-- 文本分支 -->
+        <rect class="blk" x="24" y="300" width="190" height="96" rx="4"/>
+        <text class="t-name" x="40" y="326">放射报告</text>
+        <text class="t-sub" x="40" y="348">max 1024 tokens</text>
+        <text class="t-sub" x="40" y="365">小写 + wordpunct</text>
+        <text class="t-sub" x="40" y="382">无报告 → 本任务不用</text>
+
+        <line class="flow" x1="214" y1="348" x2="246" y2="348" marker-end="url(#a1)"/>
+        <text class="t-arrow" x="230" y="338" text-anchor="middle">tok</text>
+
+        <rect class="blk" x="254" y="300" width="190" height="96" rx="4"/>
+        <text class="t-name" x="270" y="326">文本塔</text>
+        <text class="t-sub" x="270" y="348">Clinical-Longformer</text>
+        <text class="t-sub" x="270" y="365">768-d · 12 层</text>
+        <text class="t-sub" x="270" y="382">(B, 768)</text>
+
+        <line class="flow" x1="444" y1="348" x2="476" y2="348" marker-end="url(#a1)"/>
+        <text class="t-arrow" x="460" y="338" text-anchor="middle">[CLS]</text>
+
+        <rect class="blk" x="484" y="300" width="190" height="96" rx="4"/>
+        <text class="t-name" x="500" y="326">Linear 768→512</text>
+        <text class="t-sub" x="500" y="348">(B, 512)</text>
+
+        <!-- 对比损失 -->
+        <line class="flow" x1="674" y1="72" x2="706" y2="72" marker-end="url(#a1)"/>
+        <rect class="blk-accent" x="714" y="40" width="240" height="64" rx="4"/>
+        <text class="t-name" x="730" y="66">InfoNCE</text>
+        <text class="t-sub" x="730" y="86">L2 归一化 · cos × logit_scale</text>
+
+        <polyline class="flow" points="674,348 692,348 692,150 834,150 834,112" marker-end="url(#a2)"/>
+        <text class="t-arrow" x="700" y="166">L2 norm</text>
+      </svg>
+    </div>
+    <figcaption>
+      输入张量是 <code>(B,1,H,W,D)</code>；forward 第一行把它 permute 成 <code>(B,1,D,H,W)</code> 再
+      <code>cat(x,x,x)</code> 复制成 3 通道喂 ResNet 的 conv1 —— 这是接自己 dataloader 最容易踩的坑。
+      两个 512 维向量归一化后乘可学习温度 <code>logit_scale</code> 做对比学习。
+    </figcaption>
+  </figure>
+
+  <figure>
+    <div class="fig-head">
+      <span class="fig-num">图 2</span>
+      <h2 class="fig-title">图像塔内部分辨率与跳连</h2>
+    </div>
+    <div class="canvas">
+      <svg class="wide" viewBox="0 0 980 740" role="img"
+           aria-label="图像塔逐层张量形状：输入 1 通道 224×224×160，conv1 输出 64 通道，layer1 到 layer4 依次 256、512、1024、2048 通道，总下采样 32 倍；每层提供 skip 供 U-Net 解码器使用。">
+        <defs>
+          <marker id="b1" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path class="ah" d="M0,0 L10,5 L0,10 Z"/>
+          </marker>
+          <marker id="b2" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path class="ah-accent" d="M0,0 L10,5 L0,10 Z"/>
+          </marker>
+        </defs>
+
+        <!-- 主链箭头 -->
+        <line class="flow" x1="470" y1="108" x2="470" y2="130" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="182" x2="470" y2="204" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="256" x2="470" y2="278" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="330" x2="470" y2="352" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="404" x2="470" y2="426" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="478" x2="470" y2="500" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="552" x2="470" y2="574" marker-end="url(#b1)"/>
+        <line class="flow" x1="470" y1="626" x2="470" y2="648" marker-end="url(#b1)"/>
+
+        <!-- 主链模块 -->
+        <rect class="blk" x="300" y="60" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="89">输入 CT</text>
+
+        <rect class="blk" x="300" y="134" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="163">conv1</text>
+
+        <rect class="blk" x="300" y="208" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="237">maxpool</text>
+
+        <rect class="blk" x="300" y="282" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="311">layer1 × 3</text>
+
+        <rect class="blk" x="300" y="356" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="385">layer2 × 8</text>
+
+        <rect class="blk" x="300" y="430" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="459">layer3 × 36</text>
+
+        <rect class="blk" x="300" y="504" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="533">layer4 × 3</text>
+
+        <rect class="blk" x="300" y="578" width="340" height="48" rx="4"/>
+        <text class="t-name" x="316" y="607">GAP + 1×1×1 conv</text>
+
+        <rect class="blk" x="300" y="652" width="164" height="48" rx="4"/>
+        <text class="t-name" x="314" y="681">对比头 → 512</text>
+
+        <rect class="blk" x="476" y="652" width="164" height="48" rx="4"/>
+        <text class="t-name" x="490" y="681">EHR 头 → 1692</text>
+
+        <!-- 右侧：算子与张量形状 -->
+        <text class="t-shape" x="660" y="80">(B, 1, 224, 224, 160)</text>
+        <text class="t-op" x="660" y="98">permute → cat×3 后 3 通道</text>
+
+        <text class="t-shape" x="660" y="154">(1, 64, 80, 112, 224)</text>
+        <text class="t-op" x="660" y="172">7×7×7 · s(1,2,2) · pad(1,3,3)</text>
+
+        <text class="t-shape" x="660" y="228">(1, 64, 40, 56, 112)</text>
+        <text class="t-op" x="660" y="246">3×3×3 · s2</text>
+
+        <text class="t-shape" x="660" y="302">(1, 256, 40, 56, 112)</text>
+        <text class="t-op" x="660" y="320">3 bottleneck</text>
+
+        <text class="t-shape" x="660" y="376">(1, 512, 20, 28, 56)</text>
+        <text class="t-op" x="660" y="394">8 bottleneck</text>
+
+        <text class="t-shape" x="660" y="450">(1, 1024, 10, 14, 28)</text>
+        <text class="t-op" x="660" y="468">36 bottleneck</text>
+
+        <text class="t-shape" x="660" y="524">(1, 2048, 5, 7, 14)</text>
+        <text class="t-op" x="660" y="542">3 bottleneck · 总降采样 32×</text>
+
+        <text class="t-op" x="660" y="602">全局池化 → 2048-d 向量</text>
+
+        <text class="t-shape" x="660" y="681">(B, 512) / (B, 1692)</text>
+
+        <!-- 左侧：skip 轨道 -->
+        <line class="flow-accent" x1="252" y1="84" x2="252" y2="528"/>
+        <line class="flow-accent" x1="252" y1="84" x2="296" y2="84" marker-end="url(#b2)"/>
+        <line class="flow-accent" x1="252" y1="158" x2="296" y2="158" marker-end="url(#b2)"/>
+        <line class="flow-accent" x1="252" y1="306" x2="296" y2="306" marker-end="url(#b2)"/>
+        <line class="flow-accent" x1="252" y1="380" x2="296" y2="380" marker-end="url(#b2)"/>
+        <line class="flow-accent" x1="252" y1="454" x2="296" y2="454" marker-end="url(#b2)"/>
+        <line class="flow-accent" x1="252" y1="528" x2="296" y2="528" marker-end="url(#b2)"/>
+
+        <text class="t-accent" x="244" y="88" text-anchor="end">skip0</text>
+        <text class="t-accent" x="244" y="162" text-anchor="end">skip1</text>
+        <text class="t-accent" x="244" y="310" text-anchor="end">skip2</text>
+        <text class="t-accent" x="244" y="384" text-anchor="end">skip3</text>
+        <text class="t-accent" x="244" y="458" text-anchor="end">skip4</text>
+        <text class="t-accent" x="244" y="532" text-anchor="end">skip5</text>
+
+        <polyline class="flow-accent" points="252,528 252,686 240,686" marker-end="url(#b2)"/>
+        <rect class="blk-accent" x="60" y="660" width="176" height="52" rx="4"/>
+        <text class="t-accent" x="76" y="682">U-Net 解码器</text>
+        <text class="t-sub" x="76" y="700">微调时接这里</text>
+      </svg>
+    </div>
+    <figcaption>
+      形状取自 <code>I3ResNet(return_skips=True)</code> 的实测输出（输入 224×224×160，tuple 为
+      <code>(C, 三轴尺寸)</code>）。<code>return_skips</code> 会把每层特征留在列表里，正好对上 U-Net 的
+      5 个跳连，不用改 Merlin 源码。conv1 的时间维 stride=1，只在空间维下采样 2 倍 —— 换成 0.5 mm 输入时，
+      这 3 层时间卷积覆盖的物理范围会缩短到 1/3。
+    </figcaption>
+  </figure>
+
+  <section class="notes">
+    <h2>对微调意味着什么</h2>
+    <ul class="takeaways">
+      <li><strong>只有 122 M 可训练</strong>图像塔 ≈ 117 M + 两个头。1.08 GB 权重里另一大块是冻结的 Longformer，本任务用不上。</li>
+      <li><strong>BatchNorm 是雷</strong>预训练 batch=18，你只有 1–4。encoder 必须 <code>.eval()</code> 且冻结 BN 统计量，否则 running stats 被小 batch 带崩。</li>
+      <li><strong>跳连现成</strong>5 个尺度直接接解码器，每层 bottleneck 内部已有 <code>torch.utils.checkpoint</code>，显存比看起来省。</li>
+    </ul>
+  </section>
+
+  <footer>形状与参数量由本地运行 i3res.py 实测 · 输入 224×224×160 · 代码 StanfordMIMI/Merlin</footer>
+</div>
