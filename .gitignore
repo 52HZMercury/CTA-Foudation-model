@@ -20,3 +20,11 @@ venv/
 # 系统
 .DS_Store
 Thumbs.db
+
+# 训练产物
+/logs/
+/out.log
+/out_ssl.log
+
+# 临时诊断脚本
+/.check/

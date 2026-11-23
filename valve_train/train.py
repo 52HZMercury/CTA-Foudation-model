@@ -1,9 +1,12 @@
-"""标志点热图回归训练（E0：SegResNetDS，从零训练）。
+"""标志点热图回归训练。
 
+    # E0：SegResNetDS 从零
     python -m valve_train.train --grid merlin --fold 0 --out work/runs/e0_fold0
+    # E2：Merlin 编码器 + U-Net 解码器（编码器 lr 1e-5，解码器 2e-4）
+    python -m valve_train.train --grid merlin --fold 0 --arch merlin --out work/runs/e2_fold0
     python -m valve_train.train --grid merlin --fold 0 --epochs 1 --max-iters 3   # 冒烟
 
-只做标志点任务。plane / calcification 等 E2 定稿后再加。
+只做标志点任务。plane / calcification 等定稿后再加。
 """
 from __future__ import annotations
 
@@ -26,13 +29,17 @@ from valve_train.losses import LandmarkHeatmapLoss
 
 
 # ------------------------------------------------------------------ 模型
-def build_model(arch: str, out_channels: int, init_filters: int, blocks_down):
-    if arch != "segresnet":
-        raise SystemExit(f"arch={arch} 还没实现（Merlin 的 E1+ 才需要）")
-    from monai.networks.nets import SegResNetDS
-    return SegResNetDS(spatial_dims=3, in_channels=1, out_channels=out_channels,
-                       init_filters=init_filters, blocks_down=list(blocks_down),
-                       dsdepth=1, norm="INSTANCE")
+def build_model(arch: str, out_channels: int, init_filters: int, blocks_down,
+                merlin_ckpt=None, adabn=False):
+    if arch == "segresnet":
+        from monai.networks.nets import SegResNetDS
+        return SegResNetDS(spatial_dims=3, in_channels=1, out_channels=out_channels,
+                           init_filters=init_filters, blocks_down=list(blocks_down),
+                           dsdepth=1, norm="INSTANCE")
+    if arch == "merlin":
+        from valve_train.merlin_net import MerlinUNet
+        return MerlinUNet(out_channels, ckpt=merlin_ckpt, adabn=adabn)
+    raise SystemExit(f"arch={arch} 还没实现（可选 segresnet / merlin）")
 
 
 # ------------------------------------------------------------------ 评估
@@ -68,7 +75,11 @@ def main():
     ap.add_argument("--fold", type=int, default=0)
     ap.add_argument("--split", default=None, help="外部集名字，如 carry_external；给了就不折")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--arch", default="segresnet")
+    ap.add_argument("--arch", default="segresnet", choices=["segresnet", "merlin"])
+    ap.add_argument("--adabn", action="store_true",
+                    help="merlin：编码器 BN 保持 train 模式，用 CTA 数据重估 running stats")
+    ap.add_argument("--merlin-ckpt", default=None, help="默认 Merlin/merlin/models/checkpoints/ 下的 release 权重")
+    ap.add_argument("--enc-lr", type=float, default=1e-5, help="merlin 编码器 lr（解码器用 --lr）")
     ap.add_argument("--epochs", type=int, default=300)
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--lr", type=float, default=2e-4)
@@ -113,9 +124,21 @@ def main():
                             persistent_workers=args.workers > 0)
 
     model = build_model(args.arch, len(LANDMARKS), args.init_filters,
-                        [int(v) for v in args.blocks_down.split(",")]).to(device)
+                        [int(v) for v in args.blocks_down.split(",")],
+                        args.merlin_ckpt, args.adabn).to(device)
     criterion = LandmarkHeatmapLoss(args.w_mse, args.w_dice, args.w_wing).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    if args.arch == "merlin":
+        enc = [p for p in model.encoder.parameters() if p.requires_grad]
+        dec = [p for n, p in model.named_parameters()
+               if not n.startswith("encoder.") and p.requires_grad]
+        opt = torch.optim.AdamW([{"params": dec, "lr": args.lr},
+                                 {"params": enc, "lr": args.enc_lr}],
+                                weight_decay=args.wd)
+        print(f"param groups: decoder {sum(p.numel() for p in dec)/1e6:.1f}M @ {args.lr}, "
+              f"encoder {sum(p.numel() for p in enc)/1e6:.1f}M @ {args.enc_lr} "
+              f"adabn={args.adabn}")
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     def lr_at(ep):
         if ep < args.warmup:

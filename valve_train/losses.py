@@ -156,8 +156,12 @@ class SoftDiceLoss(nn.Module):
         """
         B, C = pred.shape[:2]
 
-        # 只在前景区域计算 Dice
-        fg_mask = (target > self.fg_threshold).float()
+        # 前景掩蔽用"本样本所有通道 GT 前景的并集"。
+        # 只按自己通道掩蔽时，通道 j 在别的标志点上起的假峰完全不进 Dice；MSE/AWL 都是
+        # 全图平均（800 万体素里 800 个），也压不住。实测 E2 的假峰 77.8% 落在同病例
+        # 另一个标志点上，并集掩蔽正好惩罚这种跨通道泄漏。
+        fg_mask = ((target > self.fg_threshold).float().amax(dim=1, keepdim=True)
+                   ).expand_as(target)
         pred_fg = pred * fg_mask
         target_fg = target * fg_mask
 
