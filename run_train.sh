@@ -2,6 +2,8 @@
 # 用法: bash run_train.sh --grid merlin --fold 0 [其余 train.py 参数]
 #   E0: bash run_train.sh --grid merlin --fold 0
 #   E2: bash run_train.sh --grid merlin --fold 0 --arch merlin --adabn
+#   E3: bash run_train.sh --grid merlin --fold 0 --arch merlin --adabn \
+#         --merlin-ckpt logs/20261125_184020/encoder.pth
 #
 # 每次启动：
 #   logs/<YYYYmmdd_HHMMSS>/   ← 权重 best/last.pth、log.csv、TensorBoard
